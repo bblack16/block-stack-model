@@ -38,7 +38,7 @@ module BlockStack
           query
         end
 
-        def query_dataset(query)
+        def create_query_dataset(query = nil)
           query ? dataset.find(query) : dataset.find
         end
 
@@ -49,7 +49,7 @@ module BlockStack
               { _id: (BSON::ObjectId(query) rescue query) }
             ]
           } unless query.is_a?(Hash)
-          query_dataset(query).first
+          create_query_dataset(query).first
         end
 
         def all(opts = {}, &block)
@@ -59,39 +59,39 @@ module BlockStack
         def find_all(query, &block)
           return all if query.nil? || query.empty?
           query = convert_to_mongo_query(query)
-          build_filter(query_dataset(query), opts).to_a
+          build_filter(create_query_dataset(query), opts).to_a
         end
 
         def first
-          query_dataset.first
+          create_query_dataset.first
         end
 
         def last
-          query_dataset.sort('$natural': -1).first
+          create_query_dataset.sort('$natural': -1).first
         end
 
         def count(query = {})
-          query_dataset(query).count
+          create_query_dataset(query).count
         end
 
         def average(field, query = {})
-          BBLib.average(query_dataset(query).distinct(field).to_a)
+          BBLib.average(create_query_dataset(query).distinct(field).to_a)
         end
 
         def min(field, query = {})
-          query_dataset(query).sort(field => 1).limit(1).first[field]
+          create_query_dataset(query).sort(field => 1).limit(1).first[field]
         end
 
         def max(field, query = {})
-          query_dataset(query).sort(field => -1).limit(1).first[field]
+          create_query_dataset(query).sort(field => -1).limit(1).first[field]
         end
 
         def sum(field, query = {})
-          query_dataset(query).distinct(field).to_a.sum
+          create_query_dataset(query).distinct(field).to_a.sum
         end
 
         def distinct(field, query = {})
-          query_dataset.distinct(field)
+          create_query_dataset.distinct(field)
         end
 
         def sample(query = {})
