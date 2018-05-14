@@ -155,6 +155,33 @@ module BlockStack
           end
         end
 
+        def search(query)
+          sql = attr_columns.hmap do |column|
+            next unless searchable_attributes[column[:name]]
+            casted = case column[:type]
+            when :integer, :Integer, :primary_key
+              next unless query =~ /^\d+$/
+              query.to_i
+            when :float, :Float
+              next unless query =~ /^\d+(\.\d+)?$/
+              query.to_f
+            when :bool, :boolean, :Boolean
+              next # Bool fields are not searchable
+            else
+              query
+            end
+            [column[:name], casted]
+          end.map do |field, expression|
+            case expression
+            when Integer, Float
+              "\"#{field}\" == #{expression}"
+            else
+              "\"#{field}\" LIKE \"%#{expression}%\""
+            end
+          end.join(' OR ')
+          dataset.where(Sequel.lit(sql)).all
+        end
+
         # Returns the specific SQL adapter being used
         def adapter_type
           {
