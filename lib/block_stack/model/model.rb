@@ -16,10 +16,10 @@ module BlockStack
       base.send(:include, InstanceMethods)
       base.extend(Associations)
 
-      base.singleton_class.send(:after, :all, :find_all, :query, :instantiate_all, send_value_ary: true, modify_value: true)
+      base.singleton_class.send(:after, :all, :find_all, :query, :search, :instantiate_all, send_value_ary: true, modify_value: true)
       base.singleton_class.send(:after, :find, :first, :last, :sample, :instantiate, send_value: true, modify_value: true)
-      base.send(:attr_int, :id, default: nil, allow_nil: true, sql_type: :primary_key, dformed: false, searchable: true)
-      base.send(:attr_time, :created_at, :updated_at, default_proc: proc { Time.now }, dformed: false, blockstack: { display: false })
+      base.send(:attr_int, :id, default: nil, allow_nil: true, sql_type: :primary_key, dformed: false)
+      base.send(:attr_time, :created_at, :updated_at, default_proc: proc { Time.now }, dformed: false, blockstack: { display: false }, searchable: false)
       base.send(:attr_of, Configuration, :configuration, default_proc: proc { |x| x.ancestor_config }, singleton: true)
       base.send(:attr_of, ChangeSet, :change_set, default_proc: proc { |x| ChangeSet.new(x) }, serialize: false, dformed: false)
       base.send(:attr_ary_of, Validation, :validations, default: [], singleton: true)
@@ -149,7 +149,7 @@ module BlockStack
           else
             Model.basic_search(query, all, opts[:fields])
           end
-        end
+        end unless respond_to?(:search)
 
         # Runs the provided query against this model.The query should be a String,
         # Hash or BlockStack::Query object. This method will only work if
@@ -162,7 +162,7 @@ module BlockStack
           raise RuntimeError, "BlockStack::Query was not loaded but :query was called on #{self}. Try adding require 'block_stack/query'" unless defined?(BlockStack::Query)
           dataset = yield(dataset) || dataset if block_given?
           BlockStack::Query.execute(query, dataset)
-        end
+        end unless respond_to?(:query)
 
         # This method is called by the default query method and should return
         # the dataset of the adapter.
@@ -171,7 +171,7 @@ module BlockStack
         # it to the query method.
         def query_dataset
           dataset
-        end
+        end unless respond_to?(:query_dataset)
       end
     end
 
@@ -407,7 +407,12 @@ module BlockStack
 
       # Returns only the attrs of this model that have searchable set to true.
       def searchable_attributes
-        _attrs.find_all { |name, data| data[:options][:searchable] }.to_h
+        _attrs.find_all do |name, data|
+          next if data[:options][:singleton]
+          next if data[:options][:serialize] == false
+          !data[:options].include?(:searchable) ||
+          data[:options][:searchable]
+        end.to_h
       end
     end
 
