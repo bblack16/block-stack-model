@@ -2,7 +2,7 @@ require_relative 'memory'
 
 module BlockStack
   module Models
-    module CSV
+    module YAML
       def self.included(base)
         base.extend(Memory::ClassMethods)
         base.send(:include, BlockStack::Model)
@@ -10,18 +10,18 @@ module BlockStack
       end
 
       def self.type
-        [:csv]
+        [:yaml]
       end
 
       def self.client
-        'BlockStack::Database::CSVDb'
+        'BlockStack::Database::YAMLDb'
       end
 
       BlockStack::Adapters.register(self)
 
       def self.build_db(type, *args)
-        require_relative '../databases/csv_db'
-        BlockStack::Database::CSVDb.new(*args)
+        require_relative '../databases/yaml_db'
+        BlockStack::Database::YAMLDb.new(*args)
       end
 
     end

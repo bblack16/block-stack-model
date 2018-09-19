@@ -18,7 +18,7 @@ module BlockStack
       BlockStack::Adapters.register(self)
 
       def self.build_db(type, *args)
-        require_relative '../memory_db'
+        require_relative '../databases/memory_db'
         BlockStack::Database::MemoryDb.new
       end
 
@@ -40,11 +40,16 @@ module BlockStack
         end
 
         def custom_instantiate(result)
-          return polymorphic_model.custom_instantiate(result) if is_polymorphic_child?
           return nil unless result
           return result if result.is_a?(Model)
           self.new(result)
         end
+
+        def query(query = {}, dataset = query_dataset, &block)
+          raise RuntimeError, "BlockStack::Query was not loaded but :query was called on #{self}. Try adding require 'block_stack/query'" unless defined?(BlockStack::Query)
+          dataset = yield(dataset) || dataset if block_given?
+          BlockStack::Query.execute(query, all)
+        end unless respond_to?(:query)
 
         protected
 
