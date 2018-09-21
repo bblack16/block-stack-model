@@ -1,7 +1,7 @@
 
 lib = File.expand_path("../lib", __FILE__)
 $LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
-require "block_stack_model/version"
+require "block_stack/model/version"
 
 Gem::Specification.new do |spec|
   spec.name          = "block_stack_model"
@@ -30,7 +30,7 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency 'bblib', '~> 1.0'
+  spec.add_runtime_dependency 'bblib', '~> 2.0'
   spec.add_runtime_dependency 'block_stack_util', '~> 1.0'
 
   spec.add_development_dependency "bundler", "~> 1.16"
