@@ -3,7 +3,7 @@ require_relative 'validation/validation'
 require_relative 'exceptions/invalid_model'
 require_relative 'exceptions/uniqueness_error'
 require_relative 'exceptions/invalid_association'
-require_relative 'changeset'
+require_relative 'change_set'
 require_relative 'configuration'
 
 module BlockStack
@@ -24,9 +24,9 @@ module BlockStack
       base.send(:attr_of, ChangeSet, :change_set, default_proc: proc { |x| ChangeSet.new(x) }, serialize: false, dformed: false)
       base.send(:attr_ary_of, Validation, :validations, default: [], singleton: true)
       base.send(:attr_hash, :errors, default: {}, serialize: false, dformed: false)
-      base.send(:bridge_method, :config, :db, :model_name, :clean_name, :plural_name, :dataset_name, :validations, :associations)
+      base.send(:bridge_method, :config, :db, :model_name, :clean_name, :plural_name, :dataset_name, :validations, :associations, :track_changes?)
       base.send(:config, display_name: base.clean_name)
-
+      
       base.load_associations
 
       ##########################################################
@@ -235,7 +235,9 @@ module BlockStack
       end
 
       def create(payload)
-        new(payload).save
+        new(payload).tap do |obj|
+          obj.save
+        end
       end
 
       def create_or_update(payload)
@@ -244,13 +246,14 @@ module BlockStack
         end
         if item = find(query)
           item.update(payload)
+          item
         else
           create(payload)
         end
       end
 
       def create_many(*payloads)
-        payloads.flatten.all? do |payload|
+        payloads.flatten.map do |payload|
           create(payload)
         end
       end
@@ -353,34 +356,20 @@ module BlockStack
       # Returns the controller class for this model if one exists.
       # If the build param is set to true, a class will be dynamically
       # instantiated if one does not already exist.
-      def controller(build = false, crud: false)
+      def controller(crud: false)
         raise RuntimeError, "BlockStack::Controller not found. You must require it first if you wish to use it: require 'block_stack/server'" unless defined?(BlockStack::Controller)
         return @controller if @controller
         controller_class = BlockStack.setting(:default_controller) unless controller_class.is_a?(BlockStack::Controller)
         # Figure out this classes namespace
         namespace = self.to_s.split('::')[0..-2].join('::')
-        if namespace.empty?
-          namespace = Object
-          const_name = "#{self}Controller"
-        else
-          namespace = Object.const_get(namespace)
-          const_name = "#{namespace}::#{self}Controller"
-        end
-        # Look for a controller class that matches our model in the same namespace
-        if namespace.const_defined?(const_name)
-          self.controller = namespace.const_get(const_name)
-        elsif build
-          # If a match was not found and build was set to true, we will create a new controller
-          self.controller = namespace.const_set(const_name.split('::').last, Class.new(controller_class))
-          controller.crud(self) if crud
-        else
-          return nil
-        end
-        @controller
+        controller = BBLib.class_create([namespace, "#{self}Controller"].compact.join('::'), controller_class)
+        controller.crud(self) if crud
+        @controller = controller
       end
 
       def controller=(cont)
         raise RuntimeError, "BlockStack::Controller not found. You must require it first if you wish to use it: require 'block_stack/server'" unless defined?(BlockStack::Controller)
+        raise TypeError, "Controller must be a BlockStack::Controller" unless cont.is_a?(BlockStack::Controller)
         @controller = cont
       end
 
@@ -469,7 +458,7 @@ module BlockStack
       end
 
       def save(skip_associations = false)
-        logger.debug("About to save #{clean_name} ID: #{id}")
+        logger.debug("About to save #{clean_name} ID: #{id || 'new'}")
         raise InvalidModelError, self unless valid?
         if exist_not_equal?
           if config.merge_if_exist
@@ -479,10 +468,17 @@ module BlockStack
           end
         end
         return true unless change_set.changes?
+        # previous = change_set.previous
+        # already_exists = exist?
         self.updated_at = Time.now
         adapter_save
         save_associations unless skip_associations
         refresh
+        # if track_changes? && already_exists
+        #   logger.debug("Saving change history record for #{self} ##{id}.")
+        #   history_model.new(id, changes: previous).save
+        # end
+        true
       end
 
       def delete

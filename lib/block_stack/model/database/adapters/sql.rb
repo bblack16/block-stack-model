@@ -7,7 +7,7 @@ module BlockStack
         base.send(:include, BlockStack::Model)
         base.send(:include, InstanceMethods)
 
-        base.singleton_class.send(:before, :all, :find_all, :find, :first, :last, :sample, :count, :exist?, :create_table_if_not_exist)
+        base.singleton_class.send(:before, :all, :find_all, :find, :first, :last, :sample, :count, :max, :min, :sum, :distinct, :exist?, :create_table_if_not_exist)
         base.send(:before, :save, :delete, :exist?, :create_table_if_not_exist)
       end
 
@@ -30,6 +30,7 @@ module BlockStack
         type = :mysql2 if type == :mysql
         Sequel.send(type, *args).tap do |db|
           db.loggers = [BlockStack.logger]
+          db.sql_log_level = :debug
           if type == :postgres
             db.extension :pg_array, :pg_json
           end
@@ -289,7 +290,7 @@ module BlockStack
             [
               k.to_sym,
               if _attrs[k.to_sym] && ([:hash, :array, :array_of, :elements_of].any? { |t| t == _attrs[k.to_sym][:type] } || [_attrs[k.to_sym][:classes]].flatten.any? { |c| c.is_a?(Class) && c.ancestors.include?(BBLib::Effortless) }) && v.is_a?(String)
-                JSON.parse(v)
+                ::JSON.parse(v)
               elsif defined?(Sequel::Postgres) && v.is_a?(Sequel::Postgres::JSONArray)
                 v.keys_to_sym
               else
