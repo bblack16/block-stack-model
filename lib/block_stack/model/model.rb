@@ -26,7 +26,7 @@ module BlockStack
       base.send(:attr_hash, :errors, default: {}, serialize: false, dformed: false)
       base.send(:bridge_method, :config, :db, :model_name, :clean_name, :plural_name, :dataset_name, :validations, :associations, :track_changes?)
       base.send(:config, display_name: base.clean_name)
-      
+
       base.load_associations
 
       ##########################################################
@@ -182,20 +182,6 @@ module BlockStack
         db = Database.setup(:default, :memory)
       end
       BlockStack::Adapters.by_client(db.class)
-    end
-
-    def self.next_db
-      @next_db
-    end
-
-    def self.next_db=(db)
-      @next_db = db
-    end
-
-    def self.consume_next_db
-      db = Model.next_db
-      Model.next_db = nil
-      db || BlockStack::Database.db
     end
 
     def self.model_for(name)
@@ -359,10 +345,11 @@ module BlockStack
       def controller(crud: false)
         raise RuntimeError, "BlockStack::Controller not found. You must require it first if you wish to use it: require 'block_stack/server'" unless defined?(BlockStack::Controller)
         return @controller if @controller
-        controller_class = BlockStack.setting(:default_controller) unless controller_class.is_a?(BlockStack::Controller)
+        controller_class = BlockStack::Controller
         # Figure out this classes namespace
         namespace = self.to_s.split('::')[0..-2].join('::')
-        controller = BBLib.class_create([namespace, "#{self}Controller"].compact.join('::'), controller_class)
+        class_name = [namespace, "#{self}Controller"].compact.join('::')
+        controller = BBLib.class_create(class_name, BlockStack::Controller)
         controller.crud(self) if crud
         @controller = controller
       end
@@ -453,8 +440,15 @@ module BlockStack
         self.class.find(id).serialize.each do |k, v|
           send("#{k}=", v) if k.respond_to?("#{k}=")
         end
+        refresh_associations
         reset_change_set
         true
+      end
+
+      def refresh_associations
+        associations.each do |asc|
+          send("#{asc.method_name}=", asc.retrieve(self))
+        end
       end
 
       def save(skip_associations = false)
@@ -468,16 +462,10 @@ module BlockStack
           end
         end
         return true unless change_set.changes?
-        # previous = change_set.previous
-        # already_exists = exist?
         self.updated_at = Time.now
         adapter_save
         save_associations unless skip_associations
         refresh
-        # if track_changes? && already_exists
-        #   logger.debug("Saving change history record for #{self} ##{id}.")
-        #   history_model.new(id, changes: previous).save
-        # end
         true
       end
 

@@ -10,7 +10,7 @@ module BlockStack
       # Holds the original values that this object contained.
       attr_hash :original
       # Holds changes from the previous set before a reset was called
-      attr_hash :previous
+      attr_hash :previous, default: {}
       # Holds a reference to the model or object that the changeset is for.
       attr_of BBLib::Effortless, :object, arg_at: 0
 
@@ -21,7 +21,7 @@ module BlockStack
       # there have been no changes.
       def diff
         return {} unless object
-        return object.serialize unless object.exist?
+        return object.serialize unless object.id
         object.serialize.hmap do |k, v|
           v == original[k] ? nil : [k, v]
         end
@@ -41,7 +41,7 @@ module BlockStack
       # original values to the object itself. This is also called whenether an
       # object is saved to indicate that those changes have been committed.
       def reset
-        set_previous
+        set_previous if self.original
         self.original = object.serialize.dup.hmap { |k, v| [k, (v.dup rescue v)] }
       end
 
@@ -59,10 +59,9 @@ module BlockStack
       end
 
       def set_previous
-        puts "PREVIOUS #{diff}"
         self.previous = diff.hmap do |k, _v|
           [k, original[k].dup]
-        end
+        end.dup
       end
     end
   end
