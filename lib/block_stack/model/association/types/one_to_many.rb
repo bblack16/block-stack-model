@@ -2,7 +2,7 @@ module BlockStack
   module Associations
     class OneToMany < Association
 
-      attr_set :cascade, default: false
+      attr_bool :cascade, default: false
       attr_bool :singular, default: false
       attr_bool :process_dforms, default: false
 
