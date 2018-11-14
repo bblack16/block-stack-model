@@ -54,7 +54,7 @@ module BlockStack
           index:  BBLib::HTML.build(:a, '{{plural_name}}', href: '/{{dataset_name}}'),
           delete: BBLib::HTML.build(:a, 'Delete', class: 'delete-model-btn', href: '#', 'del-url': "/api/{{dataset_name}}/{{id}}", 're-url': "/{{dataset_name}}"),
           edit:   BBLib::HTML.build(:a, 'Edit', href: '/{{dataset_name}}/{{id}}/edit'),
-          create: BBLib::HTML.build(:a, 'New {{clean_name}}', href: '/{{dataset_name}}/{{id}}/new')
+          create: BBLib::HTML.build(:a, 'New {{clean_name}}', href: '/{{dataset_name}}/new')
         }.tap do |hash|
           hash.merge!(
             view:    hash[:show],
