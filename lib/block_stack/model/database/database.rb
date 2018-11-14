@@ -31,7 +31,7 @@ module BlockStack
       raise ArgumentError, "Could not locate an appropriate adapter for #{type}." unless adapter
       BlockStack.logger.info("Setting up database :#{name}. Type is #{type}.")
       databases[name.to_sym] = adapter.build_db(type, *args)
-      BlockStack.logger.info("Added new database client (:#{name}) #{databases[name.to_sym]}")
+      BlockStack.logger.info("Added new database client :#{name} (#{databases[name.to_sym].class})")
       databases[name.to_sym]
     end
   end
