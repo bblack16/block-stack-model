@@ -59,7 +59,7 @@ module BlockStack
           types = list.map { |i| determine_mapping(i) }.uniq
           types.size == 1 ? types.first : :Text
         when :of
-          [opts[:classes]].flatten.map { |c| determine_mapping(c) }
+          BBLib.most_frequent_str([opts[:classes]].flatten.map { |c| determine_mapping(c) })
         when :array, Array, :elements_of, :array_of
           # TODO Suuport Array when in postgres
           :Text
@@ -72,6 +72,21 @@ module BlockStack
           :Text
         end
       end
+
+      # Implementation to add a dynamic property to the class to match
+      # a column in the database that does not exist on the class definition
+      # def self.add_dynamic_property(key, value)
+      #   puts "Adding dynamic sql property: #{key}"
+      #   type = case value
+      #   when Integer, Float, Array, Hash, Date, Time, String
+      #     "attr_#{key.class.to_s.downcase}"
+      #   when TrueClass, FalseClass
+      #     :attr_bool
+      #   else
+      #     :attr_str
+      #   end
+      #   send(type, key, allow_nil: true)
+      # end
 
       def self.serialize_sql(values)
         hash = values.hmap do |k, v|
