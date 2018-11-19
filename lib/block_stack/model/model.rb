@@ -316,6 +316,24 @@ module BlockStack
       def instantiate(result)
         return nil unless result
         return result if result.is_a?(Model)
+        # Check to see if there are any incoming fields this model doesn't
+        # have setters for and add them if dynamic_properties is true
+        if (config.dynamic_properties?)
+          result.each do |key, value|
+            unless(_attrs[key])
+              logger.info("Dynamically adding property #{key} to #{self} based on #{value.class}")
+              if (respond_to?(:add_dynamic_property))
+                send(:add_dynamic_property, key, value)
+              else
+                # Default for adapters is to not enforce data types.
+                # Adapters like SQL should implement add_dynamic_property
+                # so that types can be enforced to ensure serialization
+                # happens correctly.
+                send(:attr_of, Object, key)
+              end
+            end
+          end
+        end
         if respond_to?(:custom_instantiate)
           send(:custom_instantiate, result)
         else

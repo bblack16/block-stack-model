@@ -18,6 +18,8 @@ module BlockStack
       attr_bool :merge_if_exist, default: false
       # Default link tags for this model. Supports pattern interpolation using the {{field_name}} syntax
       attr_hash :links, default_proc: :default_links
+      # Dynamically add properties based on backend store. This will dynamically add readers/writers for data in the dataset.
+      attr_bool :dynamic_properties, default: true
 
       # Attributes for default values and images in views
       # -------------------------------------------------
