@@ -3,6 +3,7 @@ require_relative 'validation/validation'
 require_relative 'exceptions/invalid_model'
 require_relative 'exceptions/uniqueness_error'
 require_relative 'exceptions/invalid_association'
+require_relative 'exceptions/readonly_model'
 require_relative 'change_set'
 require_relative 'configuration'
 
@@ -455,7 +456,9 @@ module BlockStack
       end
 
       def refresh
-        self.class.find(id).serialize.each do |k, v|
+        remote = self.class.find(id)
+        return false unless remote
+        remote.serialize.each do |k, v|
           send("#{k}=", v) if k.respond_to?("#{k}=")
         end
         refresh_associations
@@ -470,6 +473,7 @@ module BlockStack
       end
 
       def save(skip_associations = false)
+        raise ReadonlyModelException, "Save cannot be called on readonly models: #{model_name}" if config.readonly?
         logger.debug("About to save #{clean_name} ID: #{id || 'new'}")
         raise InvalidModelError, self unless valid?
         if exist_not_equal?
@@ -488,7 +492,8 @@ module BlockStack
       end
 
       def delete
-        logger.debug("Deleting #{clean_name} with ID #{id}.")
+        raise ReadonlyModelException, "Delete cannot be called on readonly models: #{model_name}" if config.readonly?
+        logger.debug("Deleting #{clean_name} with ID #{id || 'nil'}.")
         delete_associations
         adapter_delete
       end
@@ -527,9 +532,9 @@ module BlockStack
       end
 
       def delete_associations
-        logger.debug { "Deleting associations for #{self.class.clean_name} #{id}." }
+        logger.debug { "Deleting associations for #{self.class.clean_name} #{id || 'nil'}." }
         BlockStack::Associations.associations_for(self).all? do |asc|
-          logger.debug("Deleting association for #{self.class.clean_name} #{id}: #{asc}")
+          logger.debug("Deleting association for #{self.class.clean_name} #{id || 'nil'}: #{asc}")
           asc.delete(self)
         end
       end
