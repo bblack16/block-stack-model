@@ -73,21 +73,6 @@ module BlockStack
         end
       end
 
-      # Implementation to add a dynamic property to the class to match
-      # a column in the database that does not exist on the class definition
-      # def self.add_dynamic_property(key, value)
-      #   puts "Adding dynamic sql property: #{key}"
-      #   type = case value
-      #   when Integer, Float, Array, Hash, Date, Time, String
-      #     "attr_#{key.class.to_s.downcase}"
-      #   when TrueClass, FalseClass
-      #     :attr_bool
-      #   else
-      #     :attr_str
-      #   end
-      #   send(type, key, allow_nil: true)
-      # end
-
       def self.serialize_sql(values)
         hash = values.hmap do |k, v|
           [
@@ -112,7 +97,7 @@ module BlockStack
         end
 
         def [](id)
-          return super unless id.is_a?(Range)
+          return find(id) unless id.is_a?(Range)
           limit = id.last.negative? ? (count + id.last - id.first) : (id.last - id.first)
           limit = limit + 1 unless id.exclude_end?
           all(offset: id.first, limit: limit)
@@ -240,6 +225,9 @@ module BlockStack
           if table_exist?
             create_missing_columns unless @_columns_checked
             return true
+          elsif !config.create_dataset_if_not_exist?
+            logger.warn("Table for #{dataset_name} does not exist and creation was set to false. The app will likely fail")
+            return false
           else
             logger.info("Creating table for #{self}: #{dataset_name} (#{BBLib.plural_string(attr_columns.size, 'column')})")
             BlockStack::Models::SQL.processing_model(self)
@@ -254,6 +242,7 @@ module BlockStack
 
         # TODO Raise error when columns types are a mismatch (a migration is needed)
         def create_missing_columns
+          return false unless config.create_missing_fields?
           if missing = missing_columns.empty? || @_columns_checked
             @_columns_checked = true unless @_columns_checked
             return true
@@ -308,10 +297,45 @@ module BlockStack
                 ::JSON.parse(v)
               elsif defined?(Sequel::Postgres) && v.is_a?(Sequel::Postgres::JSONArray)
                 v.keys_to_sym
+              elsif defined?(Sequel::Postgres) && v.is_a?(Sequel::Postgres::JSONHash)
+                v.to_h
               else
                 v
               end
             ]
+          end
+        end
+
+        # Implementation to add a dynamic property to the class to match
+        # a column in the database that does not exist on the class definition
+        def add_dynamic_property(key, value)
+          load_properties_from_db
+        end
+
+        def load_properties_from_db
+          db.schema(dataset_name).each do |col, properties|
+            unless(_attrs[col])
+              args = case properties[:type]
+              when :boolean
+                :attr_bool
+              when :integer, :long, :short
+                :attr_int
+              when :float, :double
+                :attr_float
+              when :datetime
+                :attr_time
+              when :json
+                [:attr_of, [Hash, Array]]
+              when :array
+                :attr_ary
+              when :string
+                :attr_str
+              else
+                :attr_accessor
+              end
+              logger.debug("Adding new dynamic property from SQL: #{col} (#{properties[:type]})")
+              send(*[args, col].flatten(1), allow_nil: properties[:allow_null], default: properties[:ruby_default])
+            end
           end
         end
 
