@@ -1,3 +1,5 @@
+require_relative '../util/elasticsearch_util'
+
 module BlockStack
   module Models
     module Elasticsearch
@@ -31,26 +33,10 @@ module BlockStack
       module ClassMethods
 
         def find(query)
-          query = {
-            query: {
-              bool: {
-                should: [
-                  {
-                    ids: {
-                      type: document_type,
-                      values: [query].flatten
-                    }
-                  },
-                  {
-                    term: {
-                      id: query
-                    }
-                  }
-                ],
-                minimum_should_match: 1
-              }
-            }
-          } unless query.is_a?(Hash)
+          query = ElasticsearchUtil.basic_or_query(
+            { ids: { type: document_type, values: [query].flatten } },
+            { match: { id: query } }
+          ) unless query.is_a?(Hash)
           get_query_results(query).first
         end
 
@@ -58,12 +44,16 @@ module BlockStack
           get_query_results(query: { match_all: {} })
         end
 
-        # def find_all(query, &block)
-        #   return all if query.nil? || query.empty?
-        #   query = convert_to_mongo_query(query)
-        #   build_filter(create_query_dataset(query), opts).to_a
-        # end
-        #
+        def find_all(query, &block)
+          return all if query.nil? || query.empty?
+          query = ElasticsearchUtil.basic_and_query(
+            *query.map do |field, expression|
+              { match: { field => expression } }
+            end
+          )
+          get_query_results(query)
+        end
+
         # def first
         #   create_query_dataset.first
         # end
@@ -113,8 +103,9 @@ module BlockStack
         end
 
         def execute_search(query)
+          query = { size: max_query_size }.merge(query)
           logger.debug("[Search] #{query}")
-          db.search(index: dataset_name, body: { size: max_query_size }.merge(query))
+          db.search(index: dataset_name, body: query)
         end
 
         # TODO Add default sort
