@@ -28,6 +28,9 @@ module BlockStack
       attr_bool :create_missing_fields, default: true
       # When an item is sent to create that already exists based on "unique_by", settings this to true will cause it to be merged. Otherwise and error will be raised.
       attr_bool :merge_if_exist, default: false
+      # When set to true methods that save or delete will throw an error when called. This is good to set to true for
+      # remote data sources that should not be edited (only read from).
+      attr_bool :readonly, default: false
 
       # Attributes for default values and images in views
       # -------------------------------------------------
