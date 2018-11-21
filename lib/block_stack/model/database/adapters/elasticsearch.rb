@@ -1,4 +1,4 @@
-require_relative '../util/elasticsearch_util'
+require_relative '../util/elasticsearch/util'
 
 module BlockStack
   module Models
@@ -26,17 +26,20 @@ module BlockStack
       BlockStack::Adapters.register(self)
 
       def self.build_db(type, *args)
-        require 'elasticsearch'
+        require_relative '../util/elasticsearch/client'
         ::Elasticsearch::Client.new(*args)
       end
 
       module ClassMethods
-
         def find(query)
-          query = ElasticsearchUtil.basic_or_query(
-            { ids: { type: document_type, values: [query].flatten } },
-            { match: { id: query } }
-          ) unless query.is_a?(Hash)
+          query = if query.is_a?(Hash)
+            Util.hash_to_basic_and_query(query)
+          else
+            Util.basic_or_query(
+              { ids: { type: document_type, values: [query].flatten } },
+              { match: { id: query } }
+            )
+          end
           get_query_results(query).first
         end
 
@@ -46,11 +49,7 @@ module BlockStack
 
         def find_all(query, &block)
           return all if query.nil? || query.empty?
-          query = ElasticsearchUtil.basic_and_query(
-            *query.map do |field, expression|
-              { match: { field => expression } }
-            end
-          )
+          query = Util.hash_to_basic_and_query(query)
           get_query_results(query)
         end
 
@@ -63,30 +62,32 @@ module BlockStack
         end
 
         def count(query = nil)
-          query = ElasticsearchUtil.basic_and_query(query) if query
+          query = Util.hash_to_basic_and_query(query) if query
           query = { query: { match_all: {} } } unless query
           execute_query(query).hpath('hits.total').first.to_i
         end
 
-        # def average(field, query = {})
-        #   BBLib.average(create_query_dataset(query).distinct(field).to_a)
-        # end
-        #
-        # def min(field, query = {})
-        #   create_query_dataset(query).sort(field => 1).limit(1).first[field]
-        # end
-        #
-        # def max(field, query = {})
-        #   create_query_dataset(query).sort(field => -1).limit(1).first[field]
-        # end
-        #
-        # def sum(field, query = {})
-        #   create_query_dataset(query).distinct(field).to_a.sum
-        # end
-        #
-        # def distinct(field, query = {})
-        #   create_query_dataset.distinct(field)
-        # end
+        def average(field, query = {})
+          get_agg_result(field, :avg, query)
+        end
+
+        def min(field, query = {})
+          get_agg_result(field, :min, query)
+        end
+
+        def max(field, query = {})
+          get_agg_result(field, :max, query)
+        end
+
+        def sum(field, query = {})
+          get_agg_result(field, :sum, query)
+        end
+
+        def distinct(field, query = {})
+          agg_query = Util.basic_agg_query(field, :terms)
+          agg_query = Util.hash_to_basic_and_query(query).merge(agg_query) if query
+          execute_query(agg_query).hpath('aggregations.agg.buckets.[0..-1].key')
+        end
 
         def sample(query = {})
           query = {
@@ -99,24 +100,30 @@ module BlockStack
           get_query_results(query).first
         end
 
-        # TODO
         def next_id
-          0
+          (max(:id) || 0) + 1
         end
 
         def execute_query(query)
           query = { size: max_query_size }.merge(query)
-          logger.debug("[Search] #{query}")
-          db.search(index: dataset_name, body: query)
+          dataset.search(query)
         end
 
         # TODO Add default sort
         def get_query_results(query)
-          execute_query(query).hpath('hits.hits').first.map do |hit|
+          hits = execute_query(query).hpath('hits.hits').first
+          return [] unless hits && !hits.empty?
+          hits.map do |hit|
             hit['_source'].expand.merge(hit.only('_id', '_type', '_index')).kmap do |key|
               key.to_s.gsub('@', '_').to_sym
             end
           end
+        end
+
+        def get_agg_result(field, agg_type, query = {})
+          agg_query = Util.basic_agg_query(field, agg_type)
+          agg_query = Util.hash_to_basic_and_query(query).merge(agg_query) if query
+          execute_query(agg_query).hpath('aggregations.agg.value').first
         end
 
       end
@@ -128,30 +135,20 @@ module BlockStack
           next_id
         end
 
-        def index_keys
-          if self._id
-            {_id: self._id }
-          else
-            config.unique_by.hmap do |attribute|
-              [attribute.to_sym, attribute(attribute)]
-            end
-          end
-        end
-
         protected
 
         # TODO: Parse responses
         def adapter_save
-          db.index(index: dataset_name, type: document_type, id: _id, body: serialize)
+          self.id = retrieve_id unless self.id
+          dataset.save(serialize, _id)
         end
 
         # TODO: Error handling
-        # TODO: Parse responses
         def adapter_delete
           if _id
-            db.delete(index: dataset_name, type: document_type, id: _id)
+            dataset.delete(_id)['result'] == 'deleted'
           elsif id
-            db.delete(index: dataset_name, q: "id:#{id}")
+            dataset.delete_by(id: id)['result'] == 'deleted'
           else
             false
           end
