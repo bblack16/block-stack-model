@@ -40,7 +40,7 @@ module BlockStack
           get_query_results(query).first
         end
 
-        def all(opts = {}, &block)
+        def all(&block)
           get_query_results(query: { match_all: {} })
         end
 
@@ -54,18 +54,20 @@ module BlockStack
           get_query_results(query)
         end
 
-        # def first
-        #   create_query_dataset.first
-        # end
-        #
-        # def last
-        #   create_query_dataset.sort('$natural': -1).first
-        # end
-        #
-        # def count(query = {})
-        #   create_query_dataset(query).count
-        # end
-        #
+        def first
+          get_query_results(size: 1, query: { match_all: {} }).first
+        end
+
+        def last
+          get_query_results(size: 1, sort: :desc, query: { match_all: {} }).first
+        end
+
+        def count(query = nil)
+          query = ElasticsearchUtil.basic_and_query(query) if query
+          query = { query: { match_all: {} } } unless query
+          execute_query(query).hpath('hits.total').first.to_i
+        end
+
         # def average(field, query = {})
         #   BBLib.average(create_query_dataset(query).distinct(field).to_a)
         # end
@@ -102,7 +104,7 @@ module BlockStack
           0
         end
 
-        def execute_search(query)
+        def execute_query(query)
           query = { size: max_query_size }.merge(query)
           logger.debug("[Search] #{query}")
           db.search(index: dataset_name, body: query)
@@ -110,7 +112,7 @@ module BlockStack
 
         # TODO Add default sort
         def get_query_results(query)
-          execute_search(query).hpath('hits.hits').first.map do |hit|
+          execute_query(query).hpath('hits.hits').first.map do |hit|
             hit['_source'].expand.merge(hit.only('_id', '_type', '_index')).kmap do |key|
               key.to_s.gsub('@', '_').to_sym
             end
