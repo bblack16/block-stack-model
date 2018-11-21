@@ -321,15 +321,15 @@ module BlockStack
         if (config.dynamic_properties?)
           result.each do |key, value|
             unless(_attrs[key])
-              logger.info("Dynamically adding property #{key} to #{self} based on #{value.class}")
-              if (respond_to?(:add_dynamic_property))
+              logger.debug("Dynamically adding property #{key} to #{self} based on #{value.class}")
+              if (respond_to?(:add_dynamic_property, true))
                 send(:add_dynamic_property, key, value)
               else
                 # Default for adapters is to not enforce data types.
                 # Adapters like SQL should implement add_dynamic_property
                 # so that types can be enforced to ensure serialization
                 # happens correctly.
-                send(:attr_of, Object, key)
+                send(:attr_accessor, key, allow_nil: true)
               end
             end
           end
