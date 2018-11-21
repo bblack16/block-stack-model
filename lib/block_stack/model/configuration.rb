@@ -14,12 +14,20 @@ module BlockStack
       attr_ary_of [Symbol], :unique_by, default: [:id]
       # Sets the default number of items returned for APIs. Set to nil to disable pagination completely (default).
       attr_int :paginate_at, default: nil, allow_nil: true
-      # When an item is sent to create that already exists based on "unique_by", settings this to true will cause it to be merged. Otherwise and error will be raised.
-      attr_bool :merge_if_exist, default: false
       # Default link tags for this model. Supports pattern interpolation using the {{field_name}} syntax
       attr_hash :links, default_proc: :default_links
+
+      # Database attributes
+      # -------------------
       # Dynamically add properties based on backend store. This will dynamically add readers/writers for data in the dataset.
       attr_bool :dynamic_properties, default: true
+      # If a dataset (such as a SQL table) does not exist should the model try to create it
+      # This setting does not matter for most schema-less adapters.
+      attr_bool :create_dataset_if_not_exist, default: true
+      # When set to true any fields (or columns, SQL) not present in the dataset will be created on the fly by the model
+      attr_bool :create_missing_fields, default: true
+      # When an item is sent to create that already exists based on "unique_by", settings this to true will cause it to be merged. Otherwise and error will be raised.
+      attr_bool :merge_if_exist, default: false
 
       # Attributes for default values and images in views
       # -------------------------------------------------
