@@ -1,8 +1,10 @@
 # BlockStackModel
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/block_stack_model`. To experiment with that code, run `bin/console` for an interactive prompt.
+BlockStack Model is an ORM that aims to make persistence as easy as possible for developers. Model performs similar functionality to other ORMs such as Active Record, but adds in capabilities meant to truly bridge the gap between the database code and your source code.
 
-TODO: Delete this and the text above, and describe your gem
+Unlike many other similar libraries, models are declared using a mixin, not through inheritance. This means you can write your objects as plain old ruby (POR) and then inject the persistence layer. This avoids having to deal with two versions of objects; one that represents the data in your database and an actual object that performs actions based on those properties.
+
+BlockStack Model is part of the larger BlockStack web framework but can be used on its own to add persistence to any application.
 
 ## Installation
 
@@ -22,7 +24,11 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+require 'block_stack/model'
+```
+
+More to come...
 
 ## Development
 
