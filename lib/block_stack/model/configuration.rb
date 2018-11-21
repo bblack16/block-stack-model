@@ -22,7 +22,7 @@ module BlockStack
       # Dynamically add properties based on backend store. This will dynamically add readers/writers for data in the dataset.
       attr_bool :dynamic_properties, default: true
       # If a dataset (such as a SQL table) does not exist should the model try to create it
-      # This setting does not matter for most schema-less adapters.
+      # NOTE: This setting does not matter for most schema-less adapters.
       attr_bool :create_dataset_if_not_exist, default: true
       # When set to true any fields (or columns, SQL) not present in the dataset will be created on the fly by the model
       attr_bool :create_missing_fields, default: true
