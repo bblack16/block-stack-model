@@ -39,6 +39,7 @@ module BlockStack
         end
 
         def create_query_dataset(query = nil)
+          query = (query || {}).merge(init_foundation_method => send(init_foundation_method)) if is_polymorphic_child?
           query ? dataset.find(query) : dataset.find
         end
 

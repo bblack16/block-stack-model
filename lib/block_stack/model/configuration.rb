@@ -31,6 +31,10 @@ module BlockStack
       # When set to true methods that save or delete will throw an error when called. This is good to set to true for
       # remote data sources that should not be edited (only read from).
       attr_bool :readonly, default: false
+      # Polymorphic model means that all subclasses of the parent will be stored within a single table. The type
+      # of the object will also be stored for dynamic instantiation. This can result in large SQL tables since every
+      # possible column must exist in the database.
+      attr_bool :polymorphic, default: false
 
       # Attributes for default values and images in views
       # -------------------------------------------------

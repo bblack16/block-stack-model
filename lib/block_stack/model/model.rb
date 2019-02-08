@@ -173,6 +173,10 @@ module BlockStack
         def query_dataset
           dataset
         end unless respond_to?(:query_dataset)
+
+        def inherited(child)
+          polymorphic(true) unless polymorphic || is_polymorphic_child?
+        end
       end
     end
 
@@ -203,7 +207,7 @@ module BlockStack
 
     module ClassMethods
       def inherited(subclass)
-        subclass.db(Model.consume_next_db)
+        # subclass.db(Model.consume_next_db)
       end
 
       def database_name
@@ -252,6 +256,7 @@ module BlockStack
       end
 
       def db(database = nil)
+        return polymorphic_model.db(database) if is_polymorphic_child?
         return @db = database if database
         @db ||= Database.db
       end
@@ -276,6 +281,7 @@ module BlockStack
       end
 
       def dataset_name(new_name = nil)
+        return polymorphic_model.dataset_name if is_polymorphic_child?
         return @dataset_name = new_name.to_sym if new_name
         @dataset_name ||= plural_name
       end
@@ -321,7 +327,7 @@ module BlockStack
         # have setters for and add them if dynamic_properties is true
         if (config.dynamic_properties?)
           result.each do |key, value|
-            unless(_attrs[key])
+            unless(_attrs[key] || _serialize_fields[key])
               logger.debug("Dynamically adding property #{key} to #{self} based on #{value.class}")
               if (respond_to?(:add_dynamic_property, true))
                 send(:add_dynamic_property, key, value)
@@ -338,7 +344,7 @@ module BlockStack
         if respond_to?(:custom_instantiate)
           send(:custom_instantiate, result)
         else
-          self.new(result)
+          (polymorphic_model || self).new(result)
         end
       end
 
@@ -363,6 +369,7 @@ module BlockStack
       # instantiated if one does not already exist.
       def controller(crud: false)
         raise RuntimeError, "BlockStack::Controller not found. You must require it first if you wish to use it: require 'block_stack/server'" unless defined?(BlockStack::Controller)
+        return polymorphic_model.controller if is_polymorphic_child?
         return @controller if @controller
         controller_class = BlockStack::Controller
         # Figure out this classes namespace
@@ -377,6 +384,25 @@ module BlockStack
         raise RuntimeError, "BlockStack::Controller not found. You must require it first if you wish to use it: require 'block_stack/server'" unless defined?(BlockStack::Controller)
         raise TypeError, "Controller must be a BlockStack::Controller" unless cont.is_a?(BlockStack::Controller)
         @controller = cont
+      end
+
+      def polymorphic(toggle = nil)
+        unless toggle.nil? || is_polymorphic_child?
+          @polymorphic = toggle
+          if @polymorphic || is_polymorphic_child?
+            include BBLib::TypeInit
+            init_type(:loose)
+          end
+        end
+        @polymorphic || false
+      end
+
+      def is_polymorphic_child?
+        @polymorphic_child ||= polymorphic_model ? true : false
+      end
+
+      def polymorphic_model
+        @polymorphic_model ||= ancestors.find { |a| next if a == self; a.respond_to?(:polymorphic) && a.polymorphic }
       end
 
       def register_link(name, url)
@@ -412,6 +438,10 @@ module BlockStack
     end
 
     module InstanceMethods
+      def _class
+        self.class.to_s
+      end
+
       def ==(obj)
         obj.is_a?(Model) && self.class == obj.class && id == obj.id
       end
@@ -438,7 +468,7 @@ module BlockStack
 
       def attribute?(name)
         return nil unless name
-        _attrs.include?(name) && respond_to?(name)
+        (_attrs.include?(name) || self.class._serialize_fields.include?(name)) && respond_to?(name)
       end
 
       def update(params, save_after = true)

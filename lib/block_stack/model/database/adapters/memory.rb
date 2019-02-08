@@ -30,7 +30,7 @@ module BlockStack
         end
 
         def all(opts = {})
-          dataset
+          query_dataset
         end
 
         def find_all(query, opts = {})
@@ -50,6 +50,15 @@ module BlockStack
           dataset = yield(dataset) || dataset if block_given?
           BlockStack::Query.execute(query, all)
         end unless respond_to?(:query)
+
+        def query_dataset
+          return dataset unless is_polymorphic_child?
+          type = send(init_foundation_method)
+          dataset.find_all do |obj|
+            value = obj.is_a?(Model) ? obj.send(init_foundation_method) : obj[init_foundation_method]
+            value == type
+          end
+        end
 
         protected
 

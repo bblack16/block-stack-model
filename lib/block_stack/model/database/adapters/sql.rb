@@ -114,35 +114,40 @@ module BlockStack
         end
 
         def first
-          dataset.limit(1).first
+          query_dataset.limit(1).first
         end
 
         def last
-          dataset.order(:id).last
+          query_dataset.order(:id).last
         end
 
         def count(query = {})
-          dataset.where(query).count
+          query_dataset.where(query).count
         end
 
         def average(field, query = {})
-          dataset.where(query).avg(field)
+          query_dataset.where(query).avg(field)
         end
 
         def min(field, query = {})
-          dataset.where(query).min(field)
+          query_dataset.where(query).min(field)
         end
 
         def max(field, query = {})
-          dataset.where(query).max(field)
+          query_dataset.where(query).max(field)
         end
 
         def sum(field, query = {})
-          dataset.where(query).sum(field)
+          query_dataset.where(query).sum(field)
         end
 
         def distinct(field, query = {})
-          dataset.select(field).where(query).distinct.all.map { |i| i[field.to_sym] }
+          query_dataset.select(field).where(query).distinct.all.map { |i| i[field.to_sym] }
+        end
+
+        def query_dataset
+          return polymorphic_model.dataset.where(init_foundation_method => send(init_foundation_method).to_s) if is_polymorphic_child?
+          dataset
         end
 
         def sample(query = {})
@@ -200,15 +205,43 @@ module BlockStack
         end
 
         def attr_columns
-          _attrs.map do |name, data|
+          return polymorphic_model.attr_columns if is_polymorphic_child?
+          attributes = (polymorphic ? polymorphic_attr_columns : _attrs).map do |name, data|
             next if data[:options].include?(:serialize) && !data[:options][:serialize]
             {
-              type: data[:options][:sql_type] ? data[:options][:sql_type] : BlockStack::Models::SQL.determine_mapping(data[:type], data[:options]),
+              type: data[:options][:sql_type] || BlockStack::Models::SQL.determine_mapping(data[:type], data[:options]),
               name: name,
               options: data[:sql] || {},
               default: data[:default] || data[:options][:default]
             }
           end.compact
+
+          _serialize_fields.each do |name, data|
+            next if attributes.find { |attr| attr[:name] == name }
+            attributes << {
+              type: :String,
+              name: name,
+              options: {},
+              default: data[:default]
+            }
+          end
+
+          attributes
+        end
+
+        def polymorphic_attr_columns
+          attributes = _attrs
+          descendants.each do |desc|
+            desc._attrs.each do |name, data|
+              attributes[name] = data unless attributes.include?(name)
+            end
+
+            desc._serialize_fields.each do |name, data|
+              next if attributes.include?(name)
+              attributes[name] = { options: { sql_type: :String, default: data[:default] } }
+            end
+          end
+          attributes
         end
 
         def missing_columns
@@ -286,7 +319,7 @@ module BlockStack
 
         def build_filter(opts = {})
           opts[:sort] = opts[:order] if opts[:order]
-          dataset.limit(opts[:limit]).offset(opts[:offset]).order(opts[:sort])
+          query_dataset.limit(opts[:limit]).offset(opts[:offset]).order(opts[:sort])
         end
 
         def deserialize_sql(result)
