@@ -3,6 +3,11 @@ module BlockStack
     class OneToOne < Association
       attr_bool :foreign_key, default: false
 
+      # When true if the foreign key model is missing the associated field used
+      # to store the associated ID it will automatically be added. When false an
+      # exception is raised instead.
+      attr_bool :auto_add_id_field, default: false
+
       def associated?(obj_a, obj_b)
         return false if obj_a == obj_b
         retrieve(obj_a) == obj_b
@@ -30,9 +35,15 @@ module BlockStack
       def retrieve(obj)
         return nil unless obj.id
         if foreign_key?
-          raise InvalidAssociationError, "#{obj.class} does not have a method named #{attribute} and cannot be associated with a #{model}." unless obj.respond_to?(attribute)
+          if !obj.respond_to?(attribute)
+            raise InvalidAssociationError, "#{obj.class} does not have a method named #{attribute} and cannot be associated with a #{model}." unless auto_add_id_field?
+            obj.class.send(:attr_int, attribute)
+          end
         else
-          raise InvalidAssociationError, "#{model} does not have a method named #{column} and cannot be associated with a #{obj.class}." unless model.attribute?(column)
+          if !model.attribute?(column)
+            raise InvalidAssociationError, "#{model} does not have a method named #{column} and cannot be associated with a #{obj.class}." unless auto_add_id_field?
+            model.class.send(:attr_int, column)
+          end
         end
         model.find(column => obj.attribute(attribute))
       end
